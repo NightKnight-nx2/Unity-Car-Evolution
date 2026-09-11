@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce5114d73882c6e429b08afda7c02254, type: 3}
+  m_Name: Snowmobile
+  m_EditorClassIdentifier: Assembly-CSharp::CarEvolution.Car.VehicleProfile
+  profileName: Snowmobile
+  mass: 900
+  centerOfMassOffset: {x: 0, y: -0.5, z: 0}
+  motorTorque: 1100
+  brakeTorque: 1800
+  maxSteerAngle: 22
+  suspensionDistance: 0.22
+  springForce: 18000
+  damperForce: 2600
+  fwdExtremumSlip: 0.6
+  fwdExtremumValue: 0.55
+  fwdAsymptoteSlip: 1
+  fwdAsymptoteValue: 0.3
+  fwdStiffness: 1
+  sideExtremumSlip: 0.4
+  sideExtremumValue: 0.5
+  sideAsymptoteSlip: 0.8
+  sideAsymptoteValue: 0.3
+  sideStiffness: 1

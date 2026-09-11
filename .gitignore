@@ -1,0 +1,48 @@
+# Unity generated, machine-specific and personal-data folders/files.
+# None of these should ever reach GitHub: several of them (UserSettings,
+# .vs/.vscode/.idea project files, sysinfo/crash logs) embed the local
+# machine's absolute file paths, username, and IDE state.
+
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# IDE / editor project files - these embed the absolute local project path
+# and sometimes the OS username, so they must never be committed.
+*.csproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+.vs/
+.vscode/
+.idea/
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Unity crash/diagnostic dumps - these can embed the machine's user folder
+# path and hardware/OS details.
+sysinfo.txt
+*.stackdump
+
+# Build artifacts and packages.
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# OS-generated clutter.
+.DS_Store
+Thumbs.db
+
+# Third-party service configs that carry per-developer credentials.
+crashlytics-build.properties

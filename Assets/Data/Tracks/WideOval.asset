@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306d310d93546964189fb4c07344eaaf, type: 3}
+  m_Name: WideOval
+  m_EditorClassIdentifier: Assembly-CSharp::CarEvolution.Track.TrackDefinition
+  trackName: WideOval
+  trackWidth: 14
+  closedLoop: 1
+  centerline:
+  - {x: 30, y: 0}
+  - {x: 28.977774, y: 4.658743}
+  - {x: 25.980762, y: 9}
+  - {x: 21.213203, y: 12.7279215}
+  - {x: 14.999999, y: 15.588458}
+  - {x: 7.764572, y: 17.386665}
+  - {x: -0.0000013113416, y: 18}
+  - {x: -7.764575, y: 17.386665}
+  - {x: -15.000002, y: 15.588457}
+  - {x: -21.213203, y: 12.7279215}
+  - {x: -25.980762, y: 9.000001}
+  - {x: -28.977776, y: 4.6587405}
+  - {x: -30, y: -0.00000157361}
+  - {x: -28.977774, y: -4.6587434}
+  - {x: -25.980759, y: -9.000003}
+  - {x: -21.2132, y: -12.727924}
+  - {x: -14.999997, y: -15.588458}
+  - {x: -7.7645693, y: -17.386665}
+  - {x: 0.00000035774642, y: -18}
+  - {x: 7.76457, y: -17.386665}
+  - {x: 14.999997, y: -15.588458}
+  - {x: 21.213211, y: -12.727918}
+  - {x: 25.980766, y: -8.999996}
+  - {x: 28.977776, y: -4.658739}
