@@ -1,107 +1,12 @@
 # UnityCarEvolution
 
-A top-down 2D car-driving simulation (top-down camera, real 3D `WheelCollider` physics underneath) where cars evolve to drive using raycast distance sensors, a small feedforward neural network, and a classic genetic algorithm.
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Unity](https://img.shields.io/badge/Unity-6000.3.1f1%20LTS-black.svg?logo=unity)](https://unity.com)
+[![Language](https://img.shields.io/badge/lang-TR-red.svg)](README.md)
 
-**Language / Dil:** [English](#english) · [Türkçe](#türkçe)
+**Dil / Language:** Türkçe · [English](README.en.md)
 
----
-
-## English
-
-### Overview
-
-Each car has 3-7 forward-facing raycast sensors that measure distance to the track walls. Those readings feed a small feedforward neural network (inputs: sensor distances, outputs: steering angle + throttle/brake) that drives the car. The network's weights are trained with a classic genetic algorithm: a population of cars drives in parallel every generation, the best performers are selected, and the next generation is produced via crossover + mutation.
-
-The project also includes an open, point-to-point **maze mode**: all cars spawn from the exact same point and try to reach a single finish point, with an A* pathfinder shaping the fitness signal toward the goal (A* only scores progress — it never drives the car; the neural network + GA remain fully in control of driving).
-
-### Requirements
-
-- Unity Editor **6000.3.1f1** ("Unity 6.3 LTS") or a compatible Unity 6 version.
-- The project uses `WheelCollider`, so `com.unity.modules.vehicles` must stay listed in `Packages/manifest.json` (it's already there).
-
-### Setup
-
-1. Open this folder in Unity Hub ("Add project from disk").
-2. Run these menu items in order from the top menu bar:
-   - **Car Evolution > 1. Create Data Assets (Profiles + Tracks)** — creates the Formula/Rally/Snowmobile vehicle profiles under `Assets/Data/Profiles`, and the WideOval / TightChicane / **Maze1** track assets under `Assets/Data/Tracks`.
-   - **Car Evolution > 2. Build Simulation Scene** — builds `Assets/Scenes/MainScene.unity` from scratch: track (WideOval), car prefab (with `WheelCollider`s), `PopulationManager`, `SimulationConfig`, top-down camera, HUD canvas.
-   - **Car Evolution > 3. Build Maze Scene** — builds `Assets/Scenes/MazeScene.unity` the same way but using the `Maze1` track (see [Maze mode](#maze-mode-single-start--finish-a-guided-reward) below).
-3. Press **Play**. The first generation starts immediately; the HUD (top-left) shows the current generation number, best fitness, how many cars are still alive, and live stats for the current best car.
-
-All three menu items are idempotent for assets: they won't recreate a profile/track asset that already exists. Building a scene, however, always rebuilds that `.unity` file from scratch (so any manual edits you made directly in that scene get overwritten — re-run the menu item any time you want a fresh scene).
-
-### Architecture
-
-```
-Assets/Scripts/
-  Sensors/CarSensors.cs          - fires N raycasts, returns normalized distances
-  NeuralNet/NeuralNetwork.cs     - input -> hidden(tanh) -> output(tanh), flat float[] weights
-  GA/Genome.cs, GeneticAlgorithm.cs
-                                  - elitism + tournament selection + crossover + mutation
-  Car/VehicleProfile.cs          - Formula/Rally/Snowmobile: WheelCollider parameters
-  Car/CarController.cs           - steer + throttle/brake -> WheelCollider physics
-  Car/CarAgent.cs                - ties sensors+brain+controller together, computes fitness
-  Track/TrackDefinition.cs       - a track = 2D centerline + width (data-only asset)
-  Track/TrackBuilder.cs          - turns a centerline into walls + road mesh + checkpoints
-  Track/CheckpointTrigger.cs
-  Pathfinding/MazeGrid.cs        - walkable/blocked cell grid built from a centerline
-  Pathfinding/AStarPathfinder.cs - A* (FindPath) + a Dijkstra-equivalent bulk distance field
-  Pathfinding/GoalDistanceField.cs - "true (maze-aware) distance to the finish" - O(1) lookup
-  Simulation/SimulationConfig.cs - every Inspector-configurable parameter
-  Simulation/PopulationManager.cs - the generation loop: spawn -> simulate -> evolve
-  UI/SimulationHUD.cs            - generation/fitness text + the best car's sensor rays
-  Benchmark/BenchmarkReportUI.cs - compares two PopulationManagers side by side
-Assets/Editor/CarEvolutionSetup.cs
-                                  - one-click data asset + scene bootstrap (MainScene + MazeScene)
-```
-
-On a **closed-loop track** (WideOval, TightChicane), fitness = distance covered + checkpoints passed * bonus + survival time. On the **open maze track**, fitness is instead driven by real A*-measured progress toward the finish (see [Maze mode](#maze-mode-single-start--finish-a-guided-reward)). Either way, a car "dies" (`IsAlive = false`) when it hits a wall, gets physically launched off the track, or stays nearly stationary for `stuckTimeout` seconds. A generation ends when the whole population has died or `generationTimeLimit` runs out, and the GA produces the next generation.
-
-### Maze mode (single start -> finish, A*-guided reward)
-
-The `Maze1` track (built into `MazeScene` by menu item 3) isn't a closed lap — it's an open (`closedLoop: false`) corridor with right-angle turns, similar to a black-and-white maze/pipe reference image (black = wall, white = drivable corridor).
-
-- **All cars spawn from the exact same point** (`centerline[0]`). This is safe because car-vs-car collisions are already disabled (`Physics.IgnoreLayerCollision` makes the "Car" layer not collide with itself), so stacking on top of each other on spawn causes no issue.
-- **The finish point** is the last element of the centerline. When the track is open (`closedLoop == false`), `PopulationManager.Start()` builds a `GoalDistanceField`: it rasterizes the track into a grid (`MazeGrid`) and runs `AStarPathfinder.ComputeDistanceField` (a flood outward from the goal — A* with a zero heuristic, i.e. Dijkstra) **once per generation**, computing the true (wall-aware) distance from every cell to the finish. Every car then looks this up in O(1) every frame.
-- **A* only shapes the reward signal — it never drives the car.** This is a deliberate design choice: the neural network + GA remain fully in control of driving; A* just tells them "how much closer to the finish did you get" (`CarAgent.ProgressFitness`) — actually learning how to drive is still entirely up to evolution.
-- Reward is granted only when a car reaches a **new personal-best distance** to the goal (not on raw distance change), so wiggling back and forth near the start earns nothing — only real progress (even indirect, like going around a corner) is rewarded.
-- Getting within `goalReachedDistance` (default 1.5m) of the finish sets `ReachedGoal = true` and grants a large flat bonus (+500).
-- On closed-loop tracks (`WideOval`, `TightChicane`) `goalField` is never built, and `CarAgent.ComputeFitness()` automatically falls back to the original checkpoint-index-based fitness — the maze code doesn't affect the existing tracks.
-- The maze's first centerline point sits 6 units in from the true open edge (`(0, 6)` rather than `(0, 0)`): the road mesh only exists *between* centerline points, so a car spawned too close to the very start has its rear half hanging off the edge with no ground under the (motor-driven) rear wheels — no traction, so it never moves no matter what the network outputs. 6 units of clearance reliably keeps the whole car body on solid road from the first frame.
-
-### The 5 original requirements — current status
-
-1. **Track(s):** `TrackBuilder` is fully data-driven; a `TrackDefinition` asset is just a centerline + width. The editor script creates a tight-turn track (`TightChicane`), a wide one (`WideOval`), and an open point-to-point maze (`Maze1`) — each with its own scene-builder menu item.
-2. **Inspector parameters:** the `SimulationConfig` component (on the `SimulationConfig` GameObject in the scene) exposes generation count, sensor count, population size, mutation rate/strength, elitism, tournament size, and the save/load persistence settings, all from the Inspector. (Note: changing sensor count also updates `CarSensors.sensorCount`, but the network's input size needs to be set before pressing Play — live mid-run changes aren't supported yet.)
-3. **HUD:** `SimulationHUD` shows the generation number, best fitness ever, how many cars are alive right now, and live diagnostics (speed, stuck timer, distance) for the current best car. `sensorRayVisuals` (an array of `LineRenderer`s) can draw the best car's sensor rays, but nothing is wired into that array by the scene builder yet — add a few `LineRenderer`s under `HUD_Canvas` and drag them onto the HUD component if you want that visualization.
-4. **Vehicle physics profiles:** `VehicleProfile` (a ScriptableObject) plus 3 ready-made assets (Formula/Rally/Snowmobile) are created automatically. Changing `SimulationConfig.vehicleProfile` and pressing Play again switches the profile — a live in-game dropdown to switch profiles at runtime isn't implemented yet.
-5. **Benchmark mode:** `PopulationManager.CompletionRate` (the fraction of cars that finished the track) is already computed, and `BenchmarkReportUI` compares two `PopulationManager`s side by side. Fully automating "run two configs back-to-back or in parallel" isn't implemented yet — for now you'd wire up two separate `PopulationManager` + `SimulationConfig` + track setups by hand and connect them to `BenchmarkReportUI`.
-
-### Training persistence (save/load)
-
-The **Persistence** section on `SimulationConfig` means training doesn't restart from scratch on every Stop/Play or Editor restart:
-
-- At the end of every generation (`PopulationManager.FinishGeneration()`), if `saveProgress` is on (default: on), the current population's full weights + fitness, generation number, and best fitness ever are written to `Application.persistentDataPath` as `population_<track name>.json` (one file per track — use `saveSlotName` to give it a custom name if you're running multiple experiments on the same track).
-- If `loadSavedProgress` is on (default: on), `PopulationManager.Start()` tries to read that file first; if it exists and its weight count per genome (which depends on `sensorCount`/`hiddenLayerSize`) still matches, it resumes the population and generation counter right where they left off. If it doesn't match (e.g. you changed the sensor count), a warning is logged and it starts fresh with a new random population — your old save file isn't deleted, just ignored.
-- To start completely from scratch: delete the relevant `population_*.json` file under `Application.persistentDataPath` (on Windows, typically `%userprofile%\AppData\LocalLow\<company name>\UnityCarEvolution\`), or turn off `loadSavedProgress`.
-
-### What's next (making it more parametric)
-
-- Making sensor count/population/track selection choosable before Play, from an Editor window or runtime dropdowns.
-- A "Car Evolution > 4. Build Benchmark Scene" menu item that automatically builds a second scene/`PopulationManager` for `TightChicane`.
-- Fully automating benchmark mode: running two configs back-to-back (or in accelerated parallel via `Time.timeScale`) and showing a summary screen automatically when done.
-- A simple in-Scene-view track editor (dragging centerline points around) — tracks are currently defined purely through code/assets.
-- Real vehicle visuals (currently a plain box + wheel anchors) instead of a placeholder mesh/prefab.
-
-### Notes
-
-- Because the project uses `WheelCollider`, `com.unity.modules.vehicles` is explicitly listed in `Packages/manifest.json` — without it, `WheelCollider` won't compile.
-- The "Wall" tag is created automatically by the editor script (by editing `ProjectSettings/TagManager.asset`) — you don't need to add it by hand.
-- `.gitignore` includes the standard Unity ignore list, so `Library/`, `Temp/`, and similar folders won't be committed if you push this to git.
-
----
-
-## Türkçe
+Üstten görünümlü (top-down kamera, altında gerçek 3D `WheelCollider` fiziği olan) bir 2D araba-sürüş simülasyonu; arabalar raycast mesafe sensörleri, küçük bir feedforward sinir ağı ve klasik bir genetik algoritma kullanarak sürmeyi öğreniyor.
 
 ### Genel Bakış
 
@@ -124,6 +29,8 @@ Proje ayrıca açık, tek başlangıç noktasından tek bitiş noktasına giden 
 3. **Play** tuşuna bas. İlk nesil hemen başlar; HUD (sol üstte) o anki nesil numarasını, şimdiye kadarki en iyi fitness'ı, kaç aracın hâlâ hayatta olduğunu ve o anki en iyi aracın canlı istatistiklerini gösterir.
 
 Bu üç menü öğesi asset'ler için idempotent: zaten var olan bir profil/pist asset'ini tekrar oluşturmaz. Sahne kurma işlemi ise her çalıştırıldığında ilgili `.unity` dosyasını sıfırdan yeniden kurar (o sahne üzerinde elle yaptığın değişiklikler üzerine yazılır — sahneyi yenilemek istediğinde menü öğesini tekrar çalıştırman yeterli).
+
+> **Not:** Depodaki sahne dosyalarının adı şu an `OvalScene.unity` / `MazeScene.unity` (editor menüsünün `MainScene` ismiyle kurduğu sahne, bir noktada elle `OvalScene` olarak yeniden adlandırılmış görünüyor). Menü öğesini yeniden çalıştırırsan `MainScene.unity` adıyla yeni bir sahne oluşturulur.
 
 ### Mimari
 
@@ -150,6 +57,19 @@ Assets/Editor/CarEvolutionSetup.cs
                                   - tek tıkla veri asset'leri + sahne kurulumu (MainScene + MazeScene)
 ```
 
+Nesil döngüsü kısaca şöyle işliyor:
+
+```mermaid
+flowchart LR
+    A[Popülasyonu spawn et] --> B[Her araba: sensör -> sinir ağı -> direksiyon/gaz]
+    B --> C{Araba öldü mü? / süre doldu mu?}
+    C -- hayır --> B
+    C -- evet, tüm popülasyon --> D[Fitness hesapla]
+    D --> E[Seçilim + Crossover + Mutasyon]
+    E --> F[Yeni nesil]
+    F --> A
+```
+
 **Kapalı-tur pistlerde** (WideOval, TightChicane) fitness = kat edilen mesafe + geçilen checkpoint sayısı * bonus + hayatta kalma süresi. **Açık labirent pistinde** ise fitness, bitişe doğru gerçek A*-ölçümlü ilerlemeyle belirleniyor (bkz. [Labirent modu](#labirent-modu-aynı-başlangıç-noktası---bitiş-a-yönlendirmeli-ödül)). Her iki durumda da bir araba duvara çarptığında, pistten fiziksel olarak fırlatıldığında ya da `stuckTimeout` saniye boyunca neredeyse hareketsiz kaldığında "ölür" (`IsAlive = false`). Tüm popülasyon öldüğünde ya da `generationTimeLimit` dolduğunda nesil biter ve GA bir sonraki nesli üretir.
 
 ### Labirent modu (aynı başlangıç noktası -> bitiş, A* yönlendirmeli ödül)
@@ -168,7 +88,7 @@ Assets/Editor/CarEvolutionSetup.cs
 
 1. **Pist(ler):** `TrackBuilder` tamamen data-driven; bir `TrackDefinition` asset'i sadece bir centerline + genişlik. Editor scripti dar-virajlı bir pist (`TightChicane`), geniş bir pist (`WideOval`) ve açık, tek başlangıç-tek bitişli bir labirent (`Maze1`) oluşturuyor — her biri kendi sahne kurma menü öğesine sahip.
 2. **Inspector parametreleri:** sahnedeki `SimulationConfig` GameObject'i üzerindeki `SimulationConfig` component'i — nesil sayısı, sensör sayısı, popülasyon büyüklüğü, mutasyon oranı/gücü, elitism, turnuva boyutu ve save/load kalıcılık ayarlarının hepsi Inspector'dan ayarlanabilir. (Not: sensör sayısını değiştirmek `CarSensors.sensorCount`'u da güncelliyor, ama ağın girdi boyutu Play'e basılmadan önce ayarlanmalı — oyun sırasında canlı değiştirme henüz desteklenmiyor.)
-3. **HUD:** `SimulationHUD` nesil numarasını, şimdiye kadarki en iyi fitness'ı, o an kaç aracın hayatta olduğunu ve o anki en iyi aracın canlı tanı bilgilerini (hız, sıkışma sayacı, mesafe) gösteriyor. `sensorRayVisuals` (bir `LineRenderer` dizisi) en iyi aracın sensör ışınlarını çizebilir, ama sahne kurucusu bu diziye henüz hiçbir şey bağlamıyor — istersen `HUD_Canvas` altına birkaç `LineRenderer` ekleyip HUD component'ine sürükleyerek bu görselleştirmeyi aktif edebilirsin.
+3. **HUD:** `SimulationHUD` nesil numarasını, şimdiye kadarki en iyi fitness'ı, o an kaç aracın hayatta olduğunu ve o anki en iyi aracın canlı tanı bilgilerini (hız, sıkışma sayacı, mesafe) gösteriyor. `sensorRayVisuals` (bir `LineRenderer` dizisi) en iyi aracın sensör ışınlarını çizebilir, ama sahne kurucusu bu diziye henüz hiçbir şey bağlamıyor.
 4. **Araç fizik profilleri:** `VehicleProfile` (bir ScriptableObject) ve 3 hazır asset (Formula/Rally/Snowmobile) otomatik oluşturuluyor. `SimulationConfig.vehicleProfile` alanını değiştirip Play'e tekrar basmak profili değiştirir — çalışma zamanında canlı bir dropdown ile geçiş henüz uygulanmadı.
 5. **Benchmark modu:** `PopulationManager.CompletionRate` (pisti bitiren araçların oranı) zaten hesaplanıyor, `BenchmarkReportUI` iki `PopulationManager`'ı yan yana karşılaştırıp raporluyor. "İki config'i art arda veya paralel çalıştırmayı" tamamen otomatik hale getirmek henüz yapılmadı — şu an için iki ayrı `PopulationManager` + `SimulationConfig` + pist kurulumunu elle yapıp `BenchmarkReportUI`'a bağlaman gerekiyor.
 
@@ -187,6 +107,21 @@ Assets/Editor/CarEvolutionSetup.cs
 - Benchmark modunu tamamen otomatik hale getirmek: iki config'i art arda (veya `Time.timeScale` ile hızlandırılmış paralel) çalıştırıp bitince özet ekranını otomatik göstermek.
 - Basit bir Scene-view pist editörü (centerline noktalarını sürükleyip bırakma) — şu an pistler sadece kod/asset üzerinden tanımlanıyor.
 - Gerçek araç görselleri (şu an sade bir kutu + tekerlek anchor'ları) — yer tutucu mesh/prefab yerine gerçek bir modelle değiştirmek.
+
+### Kaynakça / Referanslar
+
+Bu proje, Unity'nin kendi dahili motor modülleri dışında herhangi bir üçüncü taraf paket, kütüphane veya veri seti kullanmıyor (örn. Unity ML-Agents eklenmemiştir — öğrenme tamamen bu depodaki el yazımı sinir ağı + genetik algoritma koduyla yapılıyor).
+
+| Bağımlılık | Amaç | Lisans | Link |
+|---|---|---|---|
+| Unity Editor (6000.3.1f1, "Unity 6.3 LTS") | Oyun motoru / çalışma zamanı — 3D fizik (`WheelCollider`), render, UI | Unity Yazılım Lisans Sözleşmesi (motorun kendisi kapalı kaynak; üstüne yazdığınız proje kodu size aittir) | https://unity.com/legal |
+| `com.unity.modules.vehicles`, `com.unity.ugui` ve diğer `com.unity.modules.*` girdileri (`Packages/manifest.json`) | `WheelCollider`, UI, 2D/3D fizik, animasyon gibi standart Unity dahili modülleri | Unity motoruyla aynı lisans (ayrı bir paket değil, motora gömülü) | `Packages/manifest.json` |
+
+Bu depodaki **tüm C# kodu** (`Assets/Scripts/`, `Assets/Editor/`) yazarın kendi çalışmasıdır ve aşağıdaki [LICENSE](LICENSE) dosyasındaki MIT lisansı altındadır.
+
+### Atıf
+
+Bu proje, Instagram'daki `activation_function` hesabının paylaştığı "AI Learns To Drive" tarzı genetik-algoritma/nöroevrim araba simülasyonu videolarından esinlenilmiştir. Bu depodaki kod, mimari ve içerik tamamen bu projeye özgüdür; bahsi geçen hesapla resmi bir bağlantısı yoktur.
 
 ### Notlar
 
